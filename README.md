@@ -165,17 +165,18 @@ oxideOS>
 
 ## Testing
 
-Two headless QEMU harnesses drive the shell and read back the VGA text buffer
-to verify boot output without a display:
+The current repository does not include standalone `.sh` or `.py` test
+harnesses. Verification is performed through the build and QEMU targets:
 
-* `test_boot.sh` — boots the ISO with QEMU's monitor on a Unix socket, sends
-  a keypress past the Limine menu, and dumps the raw VGA text buffer
-  (`0xB8000`) plus CPU registers via `socat`.
-* `test_qemu.py` — the same approach in Python: boots the ISO, drives the
-  shell over the QEMU monitor by sending individual keystrokes (e.g. `clear`,
-  `version`, `uname`, `uptime`), and decodes the resulting VGA buffer.
+```sh
+make
+make run
+```
 
-Both require `qemu-system-i386`; `test_boot.sh` also requires `socat`.
+After the kernel boots, run `memtest` in the shell to exercise the physical
+memory manager, paging, and heap. The command reports whether all memory
+self-tests pass. Boot output and the other shell commands can be checked
+interactively in the VGA console.
 
 ## Shell Commands
 
