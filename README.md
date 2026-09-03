@@ -1,9 +1,14 @@
 # oxideOS
 
 oxideOS is a small 32-bit x86 operating system used as an OSDev learning
-project. It boots a freestanding C kernel, sets up core x86 descriptor and
-interrupt infrastructure, manages physical and virtual memory, and starts an
-interactive text shell.
+project. The current codebase boots a freestanding C kernel, initializes core
+x86 descriptor and interrupt infrastructure, manages physical and virtual
+memory, and starts an interactive VGA text shell with keyboard input.
+
+The current kernel version is `0.2.0`. The boot path, memory managers,
+hardware drivers, shell, and boot-time self-tests are implemented. The project
+is still a single-kernel hobby OS: it has no filesystem, scheduler, userspace,
+or networking yet.
 
 ## Current Architecture
 
@@ -24,10 +29,10 @@ interactive text shell.
   sleep state when firmware exposes the required PM1 control registers.
 * `kernel/kernel.c` initializes the kernel and runs the `oxideOS>` shell.
 
-There is no filesystem, scheduler, or userspace yet. Paging is identity-mapped
-(no higher-half kernel, no per-process address spaces), and the GDT reserves
-ring-3 selectors that nothing currently uses. The kernel intentionally remains
-in 32-bit protected mode and does not enter x86-64 long mode.
+Paging is identity-mapped (no higher-half kernel and no per-process address
+spaces), and the GDT reserves ring-3 selectors that nothing currently uses.
+The kernel intentionally remains in 32-bit protected mode and does not enter
+x86-64 long mode.
 
 ## Memory Management
 
@@ -181,7 +186,9 @@ Available commands:
 
 * `help` - list commands
 * `clear` - clear the VGA text console
+* `banner` - reprint the startup banner
 * `echo <text>` - print text
+* `color [list|<name>]` - list or change the shell theme colour
 * `about` - show a short oxideOS description
 * `version` - show the kernel version
 * `uname` - show the OS name and architecture
@@ -189,7 +196,10 @@ Available commands:
 * `meminfo` - show Multiboot memory info, live PMM frame counts, paging
   status/page-directory address, and kernel heap usage
 * `memtest` - run the PMM/heap/paging self-test suite on demand
+* `neofetch` - show a colourful system summary
+* `calc <a> <op> <b>` - evaluate an integer expression using `+`, `-`, `*`, or `/`
 * `uptime` - report PIT-backed uptime in seconds
+* `history` - show recently run commands
 * `keymap` - show the active keyboard layout
 * `keys` - show current modifier and lock-key state
 * `reboot` - request a warm reboot through the PS/2 controller
