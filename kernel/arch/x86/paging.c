@@ -450,46 +450,25 @@ void paging_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
     page_directory_t *pd = (page_directory_t *) kernel_pd_phys;
     pd->entries[0] = (pt0_phys & PAGE_FRAME_MASK) | PAGE_PRESENT | PAGE_WRITABLE;
 
-    /*
-     * 1. Low memory bootstrap mapping (0x00000000 - 0x00100000):
-     * Mapped because BIOS BDA (0x40E for EBDA pointer), EBDA, VGA text buffer (0xB8000),
-     * and BIOS ROM (0xE0000 - 0x100000 scanned for ACPI RSDP) reside in this physical range.
-     */
     for (uintptr_t p = 0; p < 0x00100000; p += PAGE_SIZE) {
         paging_map_page(p, p, PAGE_PRESENT | PAGE_WRITABLE);
     }
 
-    /*
-     * 2. Kernel image mapping:
-     * Covers .text, .rodata, .data, .bss, and the kernel stack.
-     */
     uintptr_t k_start = (uintptr_t) &_kernel_start & PAGE_FRAME_MASK;
     uintptr_t k_end   = ((uintptr_t) &_kernel_end + PAGE_SIZE - 1) & PAGE_FRAME_MASK;
     for (uintptr_t p = k_start; p < k_end; p += PAGE_SIZE) {
         paging_map_page(p, p, PAGE_PRESENT | PAGE_WRITABLE);
     }
 
-    /*
-     * 3. Physical memory manager metadata:
-     * Covers alloc_bitmap and reserved_bitmap placed after _kernel_end.
-     */
     uintptr_t bm_start = pmm_get_bitmap_start() & PAGE_FRAME_MASK;
     uintptr_t bm_end   = (pmm_get_bitmap_end() + PAGE_SIZE - 1) & PAGE_FRAME_MASK;
     for (uintptr_t p = bm_start; p < bm_end; p += PAGE_SIZE) {
         paging_map_page(p, p, PAGE_PRESENT | PAGE_WRITABLE);
     }
 
-    /*
-     * 4. Initial paging structures:
-     * Page directory and Page Table 0 themselves.
-     */
     paging_map_page(kernel_pd_phys, kernel_pd_phys, PAGE_PRESENT | PAGE_WRITABLE);
     paging_map_page(pt0_phys, pt0_phys, PAGE_PRESENT | PAGE_WRITABLE);
 
-    /*
-     * 5. Multiboot structures:
-     * Bootloader-provided tables, mmap, strings, and modules.
-     */
     if (mbi && multiboot_phys) {
         map_range(multiboot_phys, sizeof(multiboot_info_t));
         if (mbi->flags & MULTIBOOT_FLAG_MMAP) {
@@ -514,7 +493,6 @@ void paging_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
             }
         }
 
-        /* Map non-RAM / ACPI regions from memory map */
         if ((mbi->flags & MULTIBOOT_FLAG_MMAP) && mbi->mmap_addr && mbi->mmap_length > 0) {
             uintptr_t mmap_end = mbi->mmap_addr + mbi->mmap_length;
             for (uintptr_t off = mbi->mmap_addr; off < mmap_end;) {
@@ -531,32 +509,16 @@ void paging_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
         }
     }
 
-    /*
-     * 6. ACPI tables:
-     * Scan table headers before paging is enabled and identity-map their regions.
-     */
     map_acpi_tables();
-
-    /*
-     * 7. Kernel heap initial allocations.
-     */
     heap_map_all_blocks();
-
-    /*
-     * 8. Register Page Fault (#PF, vector 14) handler.
-     */
     register_interrupt_handler(14, page_fault_handler);
 
-    /*
-     * 9. Load CR3 and enable paging bit in CR0.
-     */
     paging_enable();
     paging_active = 1;
 }
 
 int paging_run_tests(void)
 {
-    /* 1. Identity mapping test */
     if (paging_get_physical(0x00100000) != 0x00100000) {
         return 0;
     }
@@ -570,7 +532,6 @@ int paging_run_tests(void)
         return 0;
     }
 
-    /* 2. Arbitrary mapping test */
     uintptr_t f1 = pmm_alloc_frame();
     if (f1 == 0) return 0;
 
@@ -590,7 +551,6 @@ int paging_run_tests(void)
         return 0;
     }
 
-    /* 3. Write / read test */
     volatile uint32_t *test_ptr = (volatile uint32_t *) test_vaddr;
     *test_ptr = 0xDEADBEEF;
     if (*test_ptr != 0xDEADBEEF) {
@@ -605,7 +565,6 @@ int paging_run_tests(void)
         return 0;
     }
 
-    /* 4. Unmapping test */
     paging_unmap_page(test_vaddr);
     if (paging_get_physical(test_vaddr) != (uintptr_t) -1) {
         pmm_free_frame(f1);
@@ -613,7 +572,6 @@ int paging_run_tests(void)
     }
     pmm_free_frame(f1);
 
-    /* 5. Multiple consecutive pages test */
     uintptr_t f_multi = pmm_alloc_frames(3);
     if (f_multi == 0) return 0;
 
@@ -642,7 +600,6 @@ int paging_run_tests(void)
     }
     pmm_free_range(f_multi, 3);
 
-    /* 6. Page-table allocation through PMM test */
     page_directory_t *pd = (page_directory_t *) kernel_pd_phys;
     uint32_t empty_pde = 0;
     for (uint32_t i = 512; i < 1024; i++) {
@@ -684,12 +641,10 @@ int paging_run_tests(void)
     pmm_free_frame(f_pt_test);
     pmm_free_frame(f_pt_test2);
 
-    /* Clean up allocated test page table and restore empty PDE */
     uintptr_t test_pt_phys = pd->entries[empty_pde] & PAGE_FRAME_MASK;
     pd->entries[empty_pde] = 0;
     pmm_free_frame(test_pt_phys);
 
-    /* 7. TLB invalidation test */
     uintptr_t f_tlb1 = pmm_alloc_frame();
     uintptr_t f_tlb2 = pmm_alloc_frame();
     if (!f_tlb1 || !f_tlb2) return 0;

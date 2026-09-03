@@ -9,53 +9,37 @@ extern uint8_t _kernel_end;
 
 int memory_run_tests(void)
 {
-    /* ========================================================== */
-    /*  PMM Tests                                                 */
-    /* ========================================================== */
-
-    /* 1. Allocate frame and verify alignment, non-zero, not frame 0 */
     uintptr_t f1 = pmm_alloc_frame();
     if (f1 == 0) return 0;
     if ((f1 % PAGE_SIZE) != 0) return 0;
     if (f1 < PAGE_SIZE) return 0;
 
-    /* Verify f1 is not inside the kernel image */
     uintptr_t k_start = (uintptr_t) &_kernel_start;
     uintptr_t k_end   = (uintptr_t) &_kernel_end;
     if (f1 >= k_start && f1 < k_end) return 0;
 
-    /* 2. Allocate multiple frames and verify uniqueness */
     uintptr_t f2 = pmm_alloc_frame();
     uintptr_t f3 = pmm_alloc_frame();
     if (f2 == 0 || f3 == 0) return 0;
     if (f1 == f2 || f2 == f3 || f1 == f3) return 0;
 
-    /* 3. Free f2 and verify it can be reused */
     pmm_free_frame(f2);
     uintptr_t f4 = pmm_alloc_frame();
     if (f4 != f2) return 0;
 
-    /* Clean up f1, f3, f4 */
     pmm_free_frame(f1);
     pmm_free_frame(f3);
     pmm_free_frame(f4);
 
-    /* 4. Multi-page allocation */
     uintptr_t mp = pmm_alloc_frames(4);
     if (mp == 0 || (mp % PAGE_SIZE) != 0) return 0;
     pmm_free_range(mp, 4);
 
-    /* 5. Permanently reserved memory cannot be freed */
     size_t used_before = pmm_used_frames();
     pmm_free_frame(0);
     pmm_free_frame(k_start);
     if (pmm_used_frames() != used_before) return 0;
 
-    /* ========================================================== */
-    /*  Heap Tests                                                */
-    /* ========================================================== */
-
-    /* 1. Alignment and basic allocation sizes */
     uint8_t *p1   = (uint8_t *) kmalloc(1);
     uint8_t *p16  = (uint8_t *) kmalloc(16);
     uint8_t *p64  = (uint8_t *) kmalloc(64);
@@ -64,14 +48,12 @@ int memory_run_tests(void)
 
     if (!p1 || !p16 || !p64 || !p256 || !p4k) return 0;
 
-    /* Verify 8-byte alignment */
     if (((uintptr_t) p1 & 7) != 0) return 0;
     if (((uintptr_t) p16 & 7) != 0) return 0;
     if (((uintptr_t) p64 & 7) != 0) return 0;
     if (((uintptr_t) p256 & 7) != 0) return 0;
     if (((uintptr_t) p4k & 7) != 0) return 0;
 
-    /* Verify writable */
     *p1 = 0xAA;
     if (*p1 != 0xAA) return 0;
     memset(p16, 0x11, 16);
@@ -98,10 +80,8 @@ int memory_run_tests(void)
     kfree(p256);
     kfree(p4k);
 
-    /* 2. kfree(NULL) safety */
     kfree(0);
 
-    /* 3. Middle block free and reuse (splitting) */
     void *a = kmalloc(100);
     void *b = kmalloc(200);
     void *c = kmalloc(300);
@@ -109,7 +89,6 @@ int memory_run_tests(void)
 
     kfree(b);
 
-    /* Allocate into freed space: should reuse b */
     void *d = kmalloc(100);
     if (d != b) return 0;
 
@@ -117,7 +96,6 @@ int memory_run_tests(void)
     kfree(d);
     kfree(c);
 
-    /* 4. Coalescing: Test kfree(A), kfree(B) */
     void *ca = kmalloc(128);
     void *cb = kmalloc(128);
     void *cc = kmalloc(128);
@@ -130,7 +108,6 @@ int memory_run_tests(void)
     kfree(c_large);
     kfree(cc);
 
-    /* 5. Coalescing: Test kfree(B), kfree(A) */
     ca = kmalloc(128);
     cb = kmalloc(128);
     cc = kmalloc(128);
@@ -143,7 +120,6 @@ int memory_run_tests(void)
     kfree(c_large);
     kfree(cc);
 
-    /* 6. Coalescing: Test kfree(B), kfree(C) */
     ca = kmalloc(128);
     cb = kmalloc(128);
     cc = kmalloc(128);
@@ -156,7 +132,6 @@ int memory_run_tests(void)
     kfree(c_large);
     kfree(ca);
 
-    /* 7. Heap growth: multiple pages */
     void *ptrs[6];
     for (int i = 0; i < 6; i++) {
         ptrs[i] = kmalloc(2048);
@@ -171,7 +146,6 @@ int memory_run_tests(void)
         kfree(ptrs[i]);
     }
 
-    /* 8. Allocation churn / stability */
     for (int iter = 0; iter < 20; iter++) {
         void *tmp = kmalloc(64 + iter * 8);
         if (!tmp) return 0;
@@ -179,7 +153,6 @@ int memory_run_tests(void)
         kfree(tmp);
     }
 
-    /* 9. kcalloc zero-initialization */
     uint32_t *zeros = (uint32_t *) kcalloc(32, sizeof(uint32_t));
     if (!zeros) return 0;
     for (int i = 0; i < 32; i++) {
@@ -191,7 +164,6 @@ int memory_run_tests(void)
     }
     kfree(zeros);
 
-    /* 10. krealloc expansion */
     uint8_t *re_buf = (uint8_t *) kmalloc(16);
     if (!re_buf) return 0;
     for (int i = 0; i < 16; i++) {
@@ -204,24 +176,20 @@ int memory_run_tests(void)
     }
     kfree(re_buf);
 
-    /* 11. Exhaustion and giant allocation safety */
     void *huge = kmalloc(0xFFFFFFFF);
     if (huge != 0) return 0;
     uintptr_t huge_frames = pmm_alloc_frames(0xFFFFFFFF);
     if (huge_frames != 0) return 0;
 
-    /* 12. Double-free safety */
     void *df_ptr = kmalloc(64);
     if (!df_ptr) return 0;
     kfree(df_ptr);
-    kfree(df_ptr); /* Must safely ignore double free without corrupting heap */
+    kfree(df_ptr);
 
-    /* Verify heap can still allocate normally after double free attempt */
     void *post_df = kmalloc(64);
     if (!post_df) return 0;
     kfree(post_df);
 
-    /* 13. Stress test sizes: 1, 8, 16, 32, 128, 512, 4096, 8192, 16384 */
     static const uint32_t stress_sizes[9] = { 1, 8, 16, 32, 128, 512, 4096, 8192, 16384 };
     void *stress_ptrs[9];
 
@@ -245,9 +213,6 @@ int memory_run_tests(void)
         }
     }
 
-    /* ========================================================== */
-    /*  Paging Tests                                              */
-    /* ========================================================== */
     if (paging_is_enabled()) {
         if (!paging_run_tests()) {
             return 0;

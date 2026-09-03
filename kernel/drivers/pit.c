@@ -19,7 +19,6 @@ void pit_init(void)
 {
     uint16_t divisor = PIT_BASE_FREQ / PIT_TARGET_HZ;
 
-    /* channel 0, lobyte/hibyte, rate generator (mode 2) */
     outb(PIT_COMMAND, 0x34);
     outb(PIT_CHANNEL0_DATA, (uint8_t)(divisor & 0xFF));
     outb(PIT_CHANNEL0_DATA, (uint8_t)(divisor >> 8));

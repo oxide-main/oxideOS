@@ -15,17 +15,13 @@ static struct gdt_ptr gp;
 
 void gdt_init(void)
 {
-    gp.limit = (sizeof(struct gdt_descriptor_32) * 5) - 1;
+    gp.limit = sizeof(gdt_entries) - 1;
     gp.base = (uint32_t) &gdt_entries;
 
     encode_gdt_entry_32(&gdt_entries[0], 0, 0, 0, 0);
-
     encode_gdt_entry_32(&gdt_entries[1], 0, 0xFFFFF, 0x9A, 0x0C);
-
     encode_gdt_entry_32(&gdt_entries[2], 0, 0xFFFFF, 0x92, 0x0C);
-
     encode_gdt_entry_32(&gdt_entries[3], 0, 0xFFFFF, 0xFA, 0x0C);
-
     encode_gdt_entry_32(&gdt_entries[4], 0, 0xFFFFF, 0xF2, 0x0C);
 
     gdt_flush((uint32_t) &gp);

@@ -2,8 +2,6 @@
 #define TYPES_H
 
 #include <stdint.h>
-
-typedef unsigned char uchar;
-typedef unsigned short ushort;
+#include <stddef.h>
 
 #endif

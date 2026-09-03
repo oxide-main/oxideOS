@@ -2,6 +2,7 @@
 #include "isr.h"
 #include "gdt.h"
 #include "drivers/pic.h"
+#include "common_headers/string.h"
 
 static struct idt_entry idt_entries[256];
 static struct idt_ptr idt_ptr;
@@ -17,16 +18,10 @@ void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags)
 
 void idt_init(void)
 {
-    idt_ptr.limit = (sizeof(struct idt_entry) * 256) - 1;
+    idt_ptr.limit = sizeof(idt_entries) - 1;
     idt_ptr.base  = (uint32_t) &idt_entries;
 
-    for (int i = 0; i < 256; i++) {
-        idt_entries[i].base_low = 0;
-        idt_entries[i].base_high = 0;
-        idt_entries[i].sel = 0;
-        idt_entries[i].always0 = 0;
-        idt_entries[i].flags = 0;
-    }
+    memset(idt_entries, 0, sizeof(idt_entries));
 
     pic_remap(0x20, 0x28);
 

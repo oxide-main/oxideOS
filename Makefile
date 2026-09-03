@@ -59,6 +59,9 @@ limine-fetch:
 	fi
 	$(MAKE) -C $(LIMINE_DIR)
 
+$(LIMINE): limine-fetch
+	@true
+
 $(LIMINE_STAMP): limine-fetch $(LIMINE_SRC_BOOT_FILES)
 	mkdir -p $(ISO_ROOT)/boot/limine $(ISO_ROOT)/EFI/BOOT
 	cp $(LIMINE_DIR)/limine-bios.sys $(ISO_ROOT)/boot/limine/

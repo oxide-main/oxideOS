@@ -11,12 +11,6 @@
 #define PAGE_PRESENT        (1u << 0)
 #define PAGE_WRITABLE       (1u << 1)
 #define PAGE_USER           (1u << 2)
-#define PAGE_WRITE_THROUGH  (1u << 3)
-#define PAGE_CACHE_DISABLE  (1u << 4)
-#define PAGE_ACCESSED       (1u << 5)
-#define PAGE_DIRTY          (1u << 6)
-#define PAGE_4MB            (1u << 7)
-#define PAGE_GLOBAL         (1u << 8)
 
 #define PAGE_FRAME_MASK     0xFFFFF000u
 #define PAGE_FLAGS_MASK     0x00000FFFu

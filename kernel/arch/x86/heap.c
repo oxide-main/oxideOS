@@ -3,38 +3,29 @@
 #include "paging.h"
 #include "common_headers/string.h"
 
-#define HEAP_MAGIC      0x4B484550  /* "KHEP" */
+#define HEAP_MAGIC      0x4B484550
 #define BLOCK_ALIGN     8
 #define HEADER_SIZE     ((uint32_t) sizeof(heap_block_t))
-
-/*
- * Minimum useful payload after splitting a block. If the remainder after
- * carving out the requested size is smaller than this, do not split.
- */
 #define MIN_SPLIT_SIZE  (HEADER_SIZE + BLOCK_ALIGN)
 
 typedef struct heap_block {
     uint32_t            magic;
-    uint32_t            size;   /* payload size in bytes */
-    int32_t             free;   /* 1 = free, 0 = allocated */
+    uint32_t            size;
+    int32_t             free;
     struct heap_block  *prev;
     struct heap_block  *next;
-    uint32_t            _pad;   /* pad to 24 bytes (multiple of 8) */
+    uint32_t            _pad;
 } heap_block_t;
 
 static heap_block_t *head;
-static uint32_t      heap_total;  /* total payload bytes under management */
-static uint32_t      heap_alloc;  /* payload bytes currently allocated */
+static uint32_t      heap_total;
+static uint32_t      heap_alloc;
 
 static inline uint32_t align_up(uint32_t v, uint32_t a)
 {
     return (v + a - 1) & ~(a - 1);
 }
 
-/*
- * Grow the heap by requesting physical frames from the PMM.
- * Returns a pointer to a new free block, or NULL on failure.
- */
 static heap_block_t *heap_grow(uint32_t min_payload)
 {
     if (min_payload > 0xFFFFFFFF - PAGE_SIZE - HEADER_SIZE) {
@@ -60,7 +51,6 @@ static heap_block_t *heap_grow(uint32_t min_payload)
 
     uint32_t total = pages * PAGE_SIZE;
 
-    /* Find tail block */
     heap_block_t *tail = head;
     if (tail) {
         while (tail->next) {
@@ -68,7 +58,6 @@ static heap_block_t *heap_grow(uint32_t min_payload)
         }
     }
 
-    /* Coalesce with tail if it is free and contiguous in physical memory */
     if (tail && tail->free) {
         uintptr_t tail_end = (uintptr_t) tail + HEADER_SIZE + tail->size;
         if (tail_end == base) {
@@ -78,7 +67,6 @@ static heap_block_t *heap_grow(uint32_t min_payload)
         }
     }
 
-    /* Create a new free block */
     heap_block_t *blk = (heap_block_t *) base;
     blk->magic = HEAP_MAGIC;
     blk->size  = total - HEADER_SIZE;
@@ -120,7 +108,6 @@ static void split_block(heap_block_t *blk, uint32_t size)
 
 static heap_block_t *coalesce(heap_block_t *blk)
 {
-    /* Merge with next if physically adjacent and free */
     if (blk->next && blk->next->magic == HEAP_MAGIC && blk->next->free) {
         uint8_t *expected_next = (uint8_t *) blk + HEADER_SIZE + blk->size;
         if ((uint8_t *) blk->next == expected_next) {
@@ -135,7 +122,6 @@ static heap_block_t *coalesce(heap_block_t *blk)
         }
     }
 
-    /* Merge with prev if physically adjacent and free */
     if (blk->prev && blk->prev->magic == HEAP_MAGIC && blk->prev->free) {
         uint8_t *expected_blk = (uint8_t *) blk->prev + HEADER_SIZE + blk->prev->size;
         if ((uint8_t *) blk == expected_blk) {
@@ -160,7 +146,6 @@ void heap_init(void)
     heap_total = 0;
     heap_alloc = 0;
 
-    /* Bootstrap the heap with one physical page */
     heap_grow(PAGE_SIZE - HEADER_SIZE);
 }
 
@@ -175,7 +160,6 @@ void *kmalloc(uint32_t size)
     uint32_t flags;
     __asm__ volatile ("pushfl; popl %0; cli" : "=r"(flags));
 
-    /* First-fit search */
     heap_block_t *blk = head;
     while (blk) {
         if (blk->magic == HEAP_MAGIC && blk->free && blk->size >= size) {
@@ -184,7 +168,6 @@ void *kmalloc(uint32_t size)
         blk = blk->next;
     }
 
-    /* Grow if no suitable block was found */
     if (!blk) {
         blk = heap_grow(size);
         if (!blk) {
@@ -193,7 +176,6 @@ void *kmalloc(uint32_t size)
         }
     }
 
-    /* Split if remainder is large enough */
     if (blk->size >= size + MIN_SPLIT_SIZE) {
         split_block(blk, size);
     }

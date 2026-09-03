@@ -65,7 +65,6 @@ void pmm_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
         return;
     }
 
-    /* First pass: find highest usable physical address below 4 GiB */
     uintptr_t mmap_end = mbi->mmap_addr + mbi->mmap_length;
     for (uintptr_t off = mbi->mmap_addr; off < mmap_end;) {
         multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *) off;
@@ -94,17 +93,14 @@ void pmm_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
     bitmap_size = (total_frames_count + 7) / 8;
     bitmap_size = (bitmap_size + 3) & ~3u;
 
-    /* Place bitmaps immediately after the kernel image */
     alloc_bitmap = &_kernel_end;
     reserved_bitmap = alloc_bitmap + bitmap_size;
 
-    /* Default all frames to used (1) and permanently reserved (1) */
     memset(alloc_bitmap, 0xFF, bitmap_size);
     memset(reserved_bitmap, 0xFF, bitmap_size);
     usable_frames_count = 0;
     used_frames_count = 0;
 
-    /* Second pass: mark available RAM regions as free */
     for (uintptr_t off = mbi->mmap_addr; off < mmap_end;) {
         multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *) off;
         if (entry->type == MULTIBOOT_MMAP_AVAILABLE && entry->addr < 0x100000000ULL) {
@@ -129,7 +125,6 @@ void pmm_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
         off += entry->size + 4;
     }
 
-    /* Third pass: enforce non-usable regions remain reserved */
     for (uintptr_t off = mbi->mmap_addr; off < mmap_end;) {
         multiboot_mmap_entry_t *entry = (multiboot_mmap_entry_t *) off;
         if (entry->type != MULTIBOOT_MMAP_AVAILABLE && entry->addr < 0x100000000ULL) {
@@ -142,31 +137,24 @@ void pmm_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
         off += entry->size + 4;
     }
 
-    /* Reserve frame 0 (IVT / BDA / NULL trap) */
     mark_region_reserved(0, PAGE_SIZE);
 
-    /* Reserve kernel image */
     uintptr_t kernel_start = (uintptr_t) &_kernel_start;
     uintptr_t kernel_end = (uintptr_t) &_kernel_end;
     mark_region_reserved(kernel_start, kernel_end - kernel_start);
 
-    /* Reserve PMM metadata (both bitmaps) */
     mark_region_reserved((uintptr_t) alloc_bitmap, bitmap_size * 2);
 
-    /* Reserve Multiboot info structure */
     mark_region_reserved(multiboot_phys, sizeof(multiboot_info_t));
 
-    /* Reserve Multiboot memory map */
     if (mbi->flags & MULTIBOOT_FLAG_MMAP) {
         mark_region_reserved(mbi->mmap_addr, mbi->mmap_length);
     }
 
-    /* Reserve Multiboot command line */
     if ((mbi->flags & MULTIBOOT_FLAG_CMDLINE) && mbi->cmdline != 0) {
         mark_region_reserved(mbi->cmdline, strlen((const char *) mbi->cmdline) + 1);
     }
 
-    /* Reserve Multiboot modules */
     if ((mbi->flags & MULTIBOOT_FLAG_MODS) && mbi->mods_count > 0 && mbi->mods_addr != 0) {
         mark_region_reserved(mbi->mods_addr, mbi->mods_count * sizeof(multiboot_module_t));
         multiboot_module_t *mods = (multiboot_module_t *) mbi->mods_addr;
@@ -180,12 +168,10 @@ void pmm_init(multiboot_info_t *mbi, uintptr_t multiboot_phys)
         }
     }
 
-    /* Reserve Multiboot ELF symbol section headers */
     if ((mbi->flags & MULTIBOOT_FLAG_ELF) && mbi->syms[2] != 0 && mbi->syms[0] > 0 && mbi->syms[1] > 0) {
         mark_region_reserved(mbi->syms[2], mbi->syms[0] * mbi->syms[1]);
     }
 
-    /* Reserve Multiboot bootloader name */
     if ((mbi->flags & MULTIBOOT_FLAG_LOADER) && mbi->boot_loader_name != 0) {
         mark_region_reserved(mbi->boot_loader_name, strlen((const char *) mbi->boot_loader_name) + 1);
     }
@@ -250,11 +236,9 @@ void pmm_free_range(uintptr_t addr, size_t count)
 
     for (size_t i = 0; i < count; i++) {
         uint32_t f = start_frame + i;
-        /* Never free permanently reserved frames */
         if (bitmap_test(reserved_bitmap, f)) {
             continue;
         }
-        /* Detect double free: if already free, do not decrement used count */
         if (!bitmap_test(alloc_bitmap, f)) {
             continue;
         }
